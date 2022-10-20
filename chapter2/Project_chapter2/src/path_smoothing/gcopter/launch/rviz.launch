@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+
+   <node name="rviz" pkg="rviz" type="rviz" output="screen"
+    args="-d $(find gcopter)/config/global_planning.rviz"> 
+  </node>
+
+
+</launch>
