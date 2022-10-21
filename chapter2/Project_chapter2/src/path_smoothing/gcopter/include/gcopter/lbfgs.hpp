@@ -198,6 +198,7 @@ enum {
  *  @retval double      The value of the cost function for the current
  * variables.
  */
+// 自定义的函数指针，用于设置目标变量与梯度信息
 typedef double (*lbfgs_evaluate_t)(void *instance, const Eigen::VectorXd &x,
                                    Eigen::VectorXd &g);
 
@@ -247,22 +248,24 @@ struct callback_data_t {
  *      via quasi-Newton methods. Mathematical Programming, Vol 141,
  *      No 1, pp. 135-163, 2013.
  */
+
+// 处理非光滑的场景
 inline int line_search_lewisoverton(
     Eigen::VectorXd &x, double &f, Eigen::VectorXd &g, double &stp,
     const Eigen::VectorXd &s, const Eigen::VectorXd &xp,
     const Eigen::VectorXd &gp, const double stpmin, const double stpmax,
     const callback_data_t &cd, const lbfgs_parameter_t &param) {
-  // x is the decision variable vector
-  // f is function value at x
-  // g is the gradient value at x
-  // stp is the initial stepsize for line search
-  // s is the search direction vector
+  // x is the decision variable vector 目标变量
+  // f is function value at x 函数值
+  // g is the gradient value at x 梯度值
+  // stp is the initial stepsize for line search 初始迭代步长
+  // s is the search direction vector 方向向量
   // xp is the decision variable vector at the current iteration
-  // gp is the gradient vector at the current iteration
-  // stpmin is the minimum allowable stepsize
-  // stpmax is the maximum allowable stepsize
-  // the struct param contains all necessary parameters
-  // the cd contains all necessary callback function
+  // 当前迭代的目标函数值 gp is the gradient vector at the current iteration
+  // 当前迭代的梯度值 stpmin is the minimum allowable stepsize 最小爹迭代步长
+  // stpmax is the maximum allowable stepsize 最大迭代步长
+  // the struct param contains all necessary parameters 优化的参数
+  // the cd contains all necessary callback function 所有的回调函数
 
   // eg.             x = xp; f = cd.proc_evaluate(cd.instance, x, g);
   // the above line assigns x with xp and computes the function and grad at x
@@ -273,6 +276,85 @@ inline int line_search_lewisoverton(
   //////////////////////////// HOMEWORK 1 START ////////////////////////////
 
   // PUT YOUR CODE FOR Lewis-Overton line search here
+
+  // 寻找 weak wolfe condition 点
+  // 需要满足 s_alpha 和 c_alpha条件，得到一个搜索的区间
+  // 参考汪博开源代码
+
+  /* Check the input parameters for errors. */
+  if (!(stp > 0.0)) {
+    return LBFGSERR_INVALIDPARAMETERS;
+  }
+
+  int count = 0;
+  double f_val_init = f;      //初始的函数值
+  double dg_init = gp.dot(s); // 初始的d * g
+
+  if (dg_init > 0) {
+    return LBFGSERR_INCREASEGRADIENT;
+  }
+
+  // s_alpha条件
+  double s_alpha = param.f_dec_coeff * dg_init;
+  // c_alpha条件
+  double c_alpha = param.s_curv_coeff * dg_init;
+  double l = 0;           //初始左边界
+  double u = stpmax;      //初始右边界
+  bool brackt = false, touched = false;
+
+  // 选择区间的循环
+  while (true) {
+    // 更新 函数值f， 目标向量， 梯度
+    x = xp + stp * s;
+    f = cd.proc_evaluate(cd.instance, x, g); //
+    ++count;
+    // 检查函数值
+    if (std::isinf(f) || std::isnan(f)) {
+      return LBFGSERR_INVALID_FUNCVAL;
+    }
+    // 判断是否满足 s_alpha条件
+    if (f - f_val_init > stp * s_alpha) {
+      // 更新右边界
+      u = stp;
+      brackt = true;
+    } else {
+      // 判断是否满足c_alpha条件
+      if (g.dot(s) > c_alpha) {
+        return count;
+      } else {
+        l = stp;
+      }
+    }
+
+    // 检查是否超出迭代次数
+    if (count >= param.max_linesearch) {
+      return LBFGSERR_MAXIMUMLINESEARCH;
+    }
+    // 间距太小了
+    if (brackt && (u - l) < param.machine_prec * u) {
+      return LBFGSERR_WIDTHTOOSMALL;
+    }
+    // 定义域缩减与扩大
+    if (brackt) {
+      stp = 0.5 * (u + l);
+    } else {
+      stp *= 2.0;
+    }
+    // 步长太小了
+    if (stp < stpmin) {
+      return LBFGSERR_MINIMUMSTEP;
+    }
+    // 步长太长了
+    if (stp > stpmax) {
+      // 根据源代码修改，还要多检查一次
+      if (touched) {
+        return LBFGSERR_MAXIMUMSTEP;
+      } else {
+        touched = true;
+        stp = stpmax;
+      }
+    }
+  }
 
   //////////////////////////// HOMEWORK 1 END ////////////////////////////
 }
@@ -330,14 +412,21 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
                           lbfgs_evaluate_t proc_evaluate,
                           lbfgs_progress_t proc_progress, void *instance,
                           const lbfgs_parameter_t &param) {
+
+  // x 优化的目标
+  // f函数的值
+  // proc_evaluate 目标函数
+  // proc_progress
   int ret, i, j, k, ls, end, bound;
   double step, step_min, step_max, fx, ys, yy;
   double gnorm_inf, xnorm_inf, beta, rate, cau;
 
-  const int n = x.size(); //参数的数量
-  const int m = param.mem_size;//缓存？？
+  const int n = x.size();       //参数的数量
+  const int m = param.mem_size; // L-BFGS的设定内存空间,历史数据的buff值
+  // 类似滑窗方法
 
   /* Check the input parameters for errors. */
+  // 检查参数
   if (n <= 0) {
     return LBFGSERR_INVALID_N;
   }
@@ -373,40 +462,54 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
   }
 
   /* Prepare intermediate variables. */
+  // 存储变量
   Eigen::VectorXd xp(n);
+  // 存储梯度
   Eigen::VectorXd g(n);
+  //
   Eigen::VectorXd gp(n);
+  // 迭代的方向
   Eigen::VectorXd d(n);
+  // 存储函数值
   Eigen::VectorXd pf(std::max(1, param.past));
 
   /* Initialize the limited memory. */
   Eigen::VectorXd lm_alpha = Eigen::VectorXd::Zero(m);
+  // 存储历史的 delta x
   Eigen::MatrixXd lm_s = Eigen::MatrixXd::Zero(n, m);
+  // 存储历史的 delta g
   Eigen::MatrixXd lm_y = Eigen::MatrixXd::Zero(n, m);
+  // delta g 与 delta x 的乘积
   Eigen::VectorXd lm_ys = Eigen::VectorXd::Zero(m);
 
   /* Construct a callback data. */
+  // 保存各种回调函数
   callback_data_t cd;
   cd.instance = instance;
   cd.proc_evaluate = proc_evaluate;
   cd.proc_progress = proc_progress;
 
   /* Evaluate the function value and its gradient. */
+  // 使用回调函数，计算函数值，变量与梯度信息
   fx = cd.proc_evaluate(cd.instance, x, g);
 
   /* Store the initial value of the cost function. */
+  // 保存函数值信息
   pf(0) = fx;
 
   /*
   Compute the direction;
   we assume the initial hessian matrix H_0 as the identity matrix.
   */
+  //  通过梯度，得到更新方向，初始方向
   d = -g;
 
   /*
   Make sure that the initial variables are not a stationary point.
   */
+  //  梯度最大值
   gnorm_inf = g.cwiseAbs().maxCoeff();
+  // 变量最大值
   xnorm_inf = x.cwiseAbs().maxCoeff();
 
   if (gnorm_inf / std::max(1.0, xnorm_inf) < param.g_epsilon) {
@@ -416,22 +519,26 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
     /*
     Compute the initial step:
     */
+    //  计算初始的方向
     step = 1.0 / d.norm();
 
-    k = 1;
+    k = 1; //迭代次数
     end = 0;
     bound = 0;
-
+    // 优化的循环函数
     while (true) {
       /* Store the current position and gradient vectors. */
+      // 存储梯度与变量
       xp = x;
       gp = g;
 
       /* If the step bound can be provied dynamically, then apply it. */
+      // 最大与最小迭代大小
       step_min = param.min_step;
       step_max = param.max_step;
 
       /* Search for an optimal step. */
+      // 得到优化的步长 step 就是算法中的t
       ls = line_search_lewisoverton(x, fx, g, step, d, xp, gp, step_min,
                                     step_max, cd, param);
 
@@ -444,6 +551,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
       }
 
       /* Report the progress. */
+      //
       if (cd.proc_progress) {
         if (cd.proc_progress(cd.instance, x, g, fx, step, k, ls)) {
           ret = LBFGS_CANCELED;
@@ -469,6 +577,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
       The criterion is given by the following formula:
       |f(past_x) - f(x)| / max(1, |f(x)|) < \delta.
       */
+      //
       if (0 < param.past) {
         /* We don't test the stopping criterion while k < past. */
         if (param.past <= k) {
@@ -483,9 +592,10 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
         }
 
         /* Store the current value of the cost function. */
+        // 存储当前的目标函数值
         pf(k % param.past) = fx;
       }
-
+      // 达到最大迭代次数后退出
       if (param.max_iterations != 0 && param.max_iterations <= k) {
         /* Maximum number of iterations. */
         ret = LBFGSERR_MAXIMUMITERATION;
@@ -500,6 +610,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
       s_{k+1} = x_{k+1} - x_{k} = \step * d_{k}.
       y_{k+1} = g_{k+1} - g_{k}.
       */
+      //更新 delta g 与 delta x
       lm_s.col(end) = x - xp;
       lm_y.col(end) = g - gp;
 
@@ -515,6 +626,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
       lm_ys(end) = ys;
 
       /* Compute the negative of gradients. */
+      // 负梯度方向
       d = -g;
 
       /*
@@ -529,8 +641,9 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
       the BFGS method for nonconvex unconstrained optimization problems.
       SIAM Journal on Optimization, Vol 11, No 4, pp. 1054-1064, 2011.
       */
-      cau = lm_s.col(end).squaredNorm() * gp.norm() * param.cautious_factor;
 
+      //  cautious update 更新Bk
+      cau = lm_s.col(end).squaredNorm() * gp.norm() * param.cautious_factor;
       if (ys > cau) {
         /*
         Recursive formula to compute dir = -(H \cdot g).
@@ -542,10 +655,13 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
         */
         ++bound;
         bound = m < bound ? m : bound;
+        // 最后元素的更新
         end = (end + 1) % m;
 
         j = end;
+        // 在滑窗中进行计算，课件中对应的公式
         for (i = 0; i < bound; ++i) {
+
           j = (j + m - 1) % m; /* if (--j == -1) j = m-1; */
           /* \alpha_{j} = \rho_{j} s^{t}_{j} \cdot q_{k+1}. */
           lm_alpha(j) = lm_s.col(j).dot(d) / lm_ys(j);
@@ -570,6 +686,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
   }
 
   /* Return the final value of the cost function. */
+  // 优化的结果
   f = fx;
 
   return ret;

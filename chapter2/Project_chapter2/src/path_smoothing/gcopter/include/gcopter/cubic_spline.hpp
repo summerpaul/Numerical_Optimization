@@ -285,7 +285,7 @@ public:
 
   inline const Eigen::MatrixX2d &getCoeffs(void) const { return b; }
 
-  // 获取梯度
+  // 获取梯度，梯度信息是每个节点的
   inline void getGrad(Eigen::Ref<Eigen::Matrix2Xd> gradByPoints) const {
     // TODO
   }

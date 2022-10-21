@@ -33,8 +33,16 @@ private:
                                     Eigen::VectorXd &g) {
     // TODO
     double cost = 0;
+
+    // cost由两部分组成
+    // 曲线的Energy +障碍物检测 Potential
+    // double energy;
+    // cubSpline.getStretchEnergy(energy);
+
     return cost;
   }
+
+  double getPotential(const Eigen::VectorXd &x, Eigen::VectorXd &g);
 
 public:
   // 测试使用，检查样条曲线的情况
@@ -49,8 +57,9 @@ public:
     tailP = terminalP;
     // 初始化样条曲线
     cubSpline.setConditions(headP, tailP, pieceN);
-
+    // 优化的点，
     points.resize(2, pieceN - 1);
+    // 优化点的梯度
     gradByPoints.resize(2, pieceN - 1);
 
     return true;
@@ -58,17 +67,24 @@ public:
 
   inline double optimize(CubicCurve &curve, const Eigen::Matrix2Xd &iniInPs,
                          const double &relCostTol) {
+
+    // TODO
+    double minCost = 0;
+
     std::cout << "in optimize " << std::endl;
     cubSpline.setInnerPoints(iniInPs);
     cubSpline.getCurve(curve);
     lbfgs::lbfgs_parameter_t param;
-    // param.
+    // 参考 汪博开源gcopter中的用法
+    param.mem_size = 18;
+    param.g_epsilon = 0.0;
+    param.min_step = 1.0e-32;
+    param.past = 3;
+    param.delta = 1.0e-7;
+    // 优化的参数是中间节点
+    // auto flag = lbfgs::lbfgs_optimize(
 
-
-    auto flag = lbfgs::lbfgs_optimize();
-
-    // TODO
-    double minCost = 0;
+    // );
     return minCost;
   }
 };
