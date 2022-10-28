@@ -285,8 +285,7 @@ inline int line_search_lewisoverton(
   if (!(stp > 0.0)) {
     return LBFGSERR_INVALIDPARAMETERS;
   }
-
-  int count = 0;
+  int count = 0;              //迭代次数
   double f_val_init = f;      //初始的函数值
   double dg_init = gp.dot(s); // 初始的d * g
 
@@ -298,8 +297,9 @@ inline int line_search_lewisoverton(
   double s_alpha = param.f_dec_coeff * dg_init;
   // c_alpha条件
   double c_alpha = param.s_curv_coeff * dg_init;
-  double l = 0;           //初始左边界
-  double u = stpmax;      //初始右边界
+
+  double lower_boundary = 0;      //初始左边界
+  double upper_boundary = stpmax; //初始右边界
   bool brackt = false, touched = false;
 
   // 选择区间的循环
@@ -308,35 +308,40 @@ inline int line_search_lewisoverton(
     x = xp + stp * s;
     f = cd.proc_evaluate(cd.instance, x, g); //
     ++count;
+    // std::cout << "in line_search_lewisoverton count is " << count << std::endl;
+    // std::cout << "lower_boundary is " << lower_boundary << " upper_boundary is " << upper_boundary << std::endl;
     // 检查函数值
     if (std::isinf(f) || std::isnan(f)) {
       return LBFGSERR_INVALID_FUNCVAL;
     }
     // 判断是否满足 s_alpha条件
-    if (f - f_val_init > stp * s_alpha) {
-      // 更新右边界
-      u = stp;
-      brackt = true;
-    } else {
-      // 判断是否满足c_alpha条件
-      if (g.dot(s) > c_alpha) {
-        return count;
-      } else {
-        l = stp;
-      }
-    }
+    // f(x(k) - f(xk + alphq *d ) > )
+    // std::cout << "f_val_init - f is " << (f_val_init - f) << std::endl;
+    // std::cout << "stp * s_alpha is " << stp * s_alpha << std::endl;
+    // std::cout << "g.dot(s) is " << g.dot(s) << std::endl;
 
+    // std::cout << "c_alpha is " << c_alpha << std::endl;
+
+    if (f_val_init - f < stp * s_alpha) {
+      // 更新右边界
+      upper_boundary = stp;
+      brackt = true;
+    } else if (g.dot(s) < c_alpha) {
+      lower_boundary = stp;
+    } else {
+      return count;
+    }
     // 检查是否超出迭代次数
     if (count >= param.max_linesearch) {
       return LBFGSERR_MAXIMUMLINESEARCH;
     }
     // 间距太小了
-    if (brackt && (u - l) < param.machine_prec * u) {
+    if (brackt && (upper_boundary - lower_boundary) < param.machine_prec * upper_boundary) {
       return LBFGSERR_WIDTHTOOSMALL;
     }
     // 定义域缩减与扩大
     if (brackt) {
-      stp = 0.5 * (u + l);
+      stp = 0.5 * (upper_boundary + lower_boundary);
     } else {
       stp *= 2.0;
     }
@@ -417,6 +422,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
   // f函数的值
   // proc_evaluate 目标函数
   // proc_progress
+  std::cout << "in lbfgs_optimize" << std::endl;
   int ret, i, j, k, ls, end, bound;
   double step, step_min, step_max, fx, ys, yy;
   double gnorm_inf, xnorm_inf, beta, rate, cau;
@@ -460,6 +466,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
   if (param.max_linesearch <= 0) {
     return LBFGSERR_INVALID_MAXLINESEARCH;
   }
+  std::cout << "Prepare intermediate variables " << std::endl;
 
   /* Prepare intermediate variables. */
   // 存储变量
@@ -485,6 +492,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
   /* Construct a callback data. */
   // 保存各种回调函数
   callback_data_t cd;
+  // 用于存储this指针
   cd.instance = instance;
   cd.proc_evaluate = proc_evaluate;
   cd.proc_progress = proc_progress;
@@ -511,9 +519,15 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
   gnorm_inf = g.cwiseAbs().maxCoeff();
   // 变量最大值
   xnorm_inf = x.cwiseAbs().maxCoeff();
+  // std::cout << "init g is " << g << std::endl;
+  // std::cout << "init x is " << x << std::endl;
+  // std::cout << "gnorm_inf is " << gnorm_inf << std::endl;
+  // std::cout << "xnorm_inf is " << xnorm_inf << std::endl;
+  // std::cout << "param.g_epsilon is " << param.g_epsilon << std::endl;
 
   if (gnorm_inf / std::max(1.0, xnorm_inf) < param.g_epsilon) {
     /* The initial guess is already a stationary point. */
+    // 初始点代价已经很小
     ret = LBFGS_CONVERGENCE;
   } else {
     /*
@@ -541,6 +555,7 @@ inline int lbfgs_optimize(Eigen::VectorXd &x, double &f,
       // 得到优化的步长 step 就是算法中的t
       ls = line_search_lewisoverton(x, fx, g, step, d, xp, gp, step_min,
                                     step_max, cd, param);
+      // std::cout << "ls is " << ls << std::endl;
 
       if (ls < 0) {
         /* Revert to the previous point. */

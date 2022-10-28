@@ -32,3 +32,6 @@ target_link_libraries(curve_gen
   ${OMPL_LIBRARIES}
   ${catkin_LIBRARIES}
 )
+
+# 测试样条曲线拟合
+add_subdirectory(cubic_spline_test)

@@ -1,0 +1,8 @@
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/CMakeFiles/rebuild_cache.dir
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/CMakeFiles/edit_cache.dir
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/gradient_descent/CMakeFiles/rebuild_cache.dir
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/gradient_descent/CMakeFiles/edit_cache.dir
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/gradient_descent/CMakeFiles/gradient_descent.dir
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/test/CMakeFiles/rebuild_cache.dir
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/test/CMakeFiles/edit_cache.dir
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/build/test/CMakeFiles/chapter1_test.dir

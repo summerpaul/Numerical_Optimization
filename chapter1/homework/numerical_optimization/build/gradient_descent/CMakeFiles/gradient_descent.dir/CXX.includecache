@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/gradient_descent/gradient_descent.cpp
+gradient_descent.h
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/gradient_descent/gradient_descent.h
+iostream
+-
+
+/home/sunny/Project/my_projet/Numerical_Optimization/numerical_optimization/gradient_descent/gradient_descent.h
+eigen3/Eigen/Core
+-
+functional
+-
+iostream
+-
+vector
+-
+

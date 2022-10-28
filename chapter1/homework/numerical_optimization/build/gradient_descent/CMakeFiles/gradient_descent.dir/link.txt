@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgradient_descent.a  CMakeFiles/gradient_descent.dir/gradient_descent.cpp.o
+/usr/bin/ranlib libgradient_descent.a

@@ -161,6 +161,9 @@ private:
   BandedSystem A;
   Eigen::MatrixX2d b;
 
+  Eigen::MatrixXd partial_D;
+  Eigen::MatrixXd partial_diff_x;
+
 public:
   // 设置边界条件,起点与终点 + 曲线数量
   inline void setConditions(const Eigen::Vector2d &headPos,
@@ -183,6 +186,42 @@ public:
 
     // 设置A矩阵的维度与带状矩阵，上下带宽为1
     A.create(N - 1, 1, 1);
+
+    Eigen::MatrixXd A_tmp;
+    A_tmp.resize(N - 1, N - 1);
+    Eigen::MatrixXd partial_B;
+    partial_B.resize(N - 1, N - 1);
+    A_tmp.setZero();
+    partial_B.setZero();
+    for (int i = 0; i < N - 1; ++i) {
+      if (i == 0) {
+        A_tmp(0, 0) = 4;
+        A_tmp(0, 1) = 1;
+        partial_B(0, 1) = 3;
+      } else if (i == N - 2) {
+        A_tmp(N - 2, N - 3) = 1;
+        A_tmp(N - 2, N - 2) = 4;
+        partial_B(N - 2, N - 3) = -3;
+      } else {
+        A_tmp(i, i - 1) = 1;
+        A_tmp(i, i) = 4;
+        A_tmp(i, i + 1) = 1;
+        partial_B(i, i - 1) = -3;
+        partial_B(i, i + 1) = 3;
+      }
+    }
+    Eigen::MatrixXd A_inv = A_tmp.inverse();
+    partial_D = A_inv * partial_B;
+    // PRINT_MATRIX(partial_D);
+
+    partial_diff_x.resize(N, N - 1);
+    partial_diff_x.setZero();
+    partial_diff_x(0, 0) = -1;
+    partial_diff_x(N - 1, N - 2) = 1;
+    for (int i = 1; i < N - 1; ++i) {
+      partial_diff_x(i, i) = -1;
+      partial_diff_x(i, i - 1) = 1;
+    }
 
     return;
   }
@@ -225,6 +264,7 @@ public:
 
     A.factorizeLU(); // A矩阵进行LU分解
     A.solve(b);      //求解D
+    // std::cout << "solve b " << std::endl;
     // 存储D
     Eigen::MatrixX2d D = Eigen::MatrixX2d::Zero(N + 1, 2);
     for (int i = 1; i < N; i++) {
@@ -248,6 +288,7 @@ public:
                         D.row(i + 1).transpose();
       b.block(i * 4, 0, 4, 2) = coeffMat.transpose();
     }
+    // std::cout << "calc coeffMat " << std::endl;
 
     return;
   }
@@ -274,20 +315,47 @@ public:
     Eigen::Matrix<double, 2, 4> coeffMat;
     for (int i = 0; i < N; i++) {
       coeffMat = b.block(i * 4, 0, 4, 2).transpose();
-      d = coeffMat.col(1);
-      c = coeffMat.col(0);
+      d = coeffMat.col(0);
+      c = coeffMat.col(1);
       energy +=
           4.0 * c.squaredNorm() + 12.0 * d.squaredNorm() + 12.0 * d.dot(c);
+      // std::cout << "d is " << d << " c is " << c << std::endl;
     }
 
     return;
   }
 
-  inline const Eigen::MatrixX2d &getCoeffs(void) const { return b; }
-
   // 获取梯度，梯度信息是每个节点的
   inline void getGrad(Eigen::Ref<Eigen::Matrix2Xd> gradByPoints) const {
     // TODO
+    // grad = 8 * ci * ci' + 24 * di * di' + 12 * di * ci' + 12 * di' * ci
+    // grad = (8 * ci + 12 * di) * ci' + (24 * di + 12 * ci)* di'
+    Eigen::MatrixXd partial_c = Eigen::MatrixXd::Zero(N, N - 1);
+    Eigen::MatrixXd partial_d = Eigen::MatrixXd::Zero(N, N - 1);
+    //
+    partial_c.row(0) = -3 * partial_diff_x.row(0) - partial_D.row(0);
+    partial_d.row(0) = 2 * partial_diff_x.row(0) + partial_D.row(0);
+    for (int i = 1; i < N - 1; ++i) {
+      partial_c.row(i) = -3 * partial_diff_x.row(i) - 2 * partial_D.row(i - 1) -
+                         partial_D.row(i);
+      partial_d.row(i) =
+          2 * partial_diff_x.row(i) + partial_D.row(i - 1) + partial_D.row(i);
+    }
+    partial_c.row(N - 1) =
+        -3 * partial_diff_x.row(N - 1) - 2 * partial_D.row(N - 2);
+    partial_d.row(N - 1) = 2 * partial_diff_x.row(N - 1) + partial_D.row(N - 2);
+
+    gradByPoints.setZero();
+    Eigen::Vector2d c, d;
+    Eigen::Matrix<double, 2, 4> coeffMat;
+
+    for (int i = 0; i < N; ++i) {
+      coeffMat = b.block(i * 4, 0, 4, 2).transpose();
+      d = coeffMat.col(0);
+      c = coeffMat.col(1);
+      gradByPoints += (24 * d + 12 * c) * partial_d.row(i) +
+                      (12 * d + 8 * c) * partial_c.row(i);
+    }
   }
 };
 } // namespace cubic_spline

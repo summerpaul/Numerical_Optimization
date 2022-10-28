@@ -1,0 +1,12 @@
+Determining if the C compiler works failed with the following output:
+Change Dir: /home/sunny/Project/my_projet/Numerical_Optimization/chapter3/HW3/lec_3_homework_part2_modified/lec_3_homework_part2_solution - repo/low-dim QP/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/ninja cmTC_d107d && [1/2] Building C object CMakeFiles/cmTC_d107d.dir/testCCompiler.c.o
+[2/2] Linking C executable cmTC_d107d
+FAILED: cmTC_d107d 
+: && /usr/bin/avr-gcc   -rdynamic CMakeFiles/cmTC_d107d.dir/testCCompiler.c.o  -o cmTC_d107d   && :
+avr-gcc: error: unrecognized command line option ‘-rdynamic’
+ninja: build stopped: subcommand failed.
+
+
+
