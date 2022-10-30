@@ -211,9 +211,11 @@ public:
       }
     }
     Eigen::MatrixXd A_inv = A_tmp.inverse();
+    // dD/dx = A^(-1)*dB/dx
     partial_D = A_inv * partial_B;
     // PRINT_MATRIX(partial_D);
 
+    // d(x(i)- x(i+1))/dx
     partial_diff_x.resize(N, N - 1);
     partial_diff_x.setZero();
     partial_diff_x(0, 0) = -1;
@@ -330,6 +332,10 @@ public:
     // TODO
     // grad = 8 * ci * ci' + 24 * di * di' + 12 * di * ci' + 12 * di' * ci
     // grad = (8 * ci + 12 * di) * ci' + (24 * di + 12 * ci)* di'
+    // c(i) = 3(x(i+1) - x(i)) - 2D(i) - D(i+1)
+    // dc(i)/dx = 3d(d(x(i+1) - x(i)))/dx -2dD(i)/dx - dD(i-1)/dx
+    // d(i) = 2(x(i) - x(i+1)) + D(i) + D(i+1)
+    // dd(i)/dx = 2 d(x(i) - x(i-1))/dx + dD(i)/dx + dD(i+1)/dx
     Eigen::MatrixXd partial_c = Eigen::MatrixXd::Zero(N, N - 1);
     Eigen::MatrixXd partial_d = Eigen::MatrixXd::Zero(N, N - 1);
     //
